@@ -1,0 +1,10 @@
+name: "discover"
+version: "0.1.0"
+usage: "-f discover://relative/path/to/values"
+description: "Include all .yaml files at a location relative to the chart root as values."
+ignoreFlags: false
+downloaders:
+- command: "bin/discover"
+  protocols:
+  - "discover"
+  - "collect"
