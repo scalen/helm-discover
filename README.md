@@ -75,6 +75,23 @@ following query parameter:
 `union`: Discovers all files with any of the given suffixes _or_ the given
 prefixes.
 
+### Default suffixes
+
+It is important to note that the following suffix options are applied by
+default:
+```
+suffix=.yml&suffix=.yaml
+```
+This will apply regardless of the `prefix=...` or `prefix_protocol=.../...`
+options specified.  This can lead to some unexpected behaviour where
+values files are unexpectedly excluded (or included, when using the
+`union` option).
+
+However, these default suffix options will be removed if any other
+`suffix=...` and/or `suffix_protocol=.../...` options are specified.  As
+such, if you wish to disable suffix filtering entirely, the null-suffix
+option `suffix=` (e.g. `...?suffix=&...`) may be used.
+
 ### Usecase: Encrypted values
 
 Imagine a case where we have an arbitrary organisation of values files

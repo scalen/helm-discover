@@ -40,6 +40,15 @@ jobs:
             b: 2
         run: sh -c "${TEST_SCRIPT}"
 
+      - name: Test behaviour without default suffix filtering
+        env:
+          path: discover://test?suffix=
+          expected: |-
+            a: 1
+            b: 2
+            c: 3
+        run: sh -c "${TEST_SCRIPT}"
+
       - name: Test recursive behaviour
         env:
           path: discover://test?recursive
@@ -171,6 +180,15 @@ jobs:
           expected: >-
             template
             -f test://test/bar.yml
+            ./charts/merged-values
+        run: sh -c "${TEST_SCRIPT}"
+
+      - name: Test single prefix-based protocol without default suffix filtering behaviour
+        env:
+          path: discover://test?suffix=&prefix_protocol=b/test
+          expected: >-
+            template
+            -f test://test/bar.yml,test://test/baz.txt
             ./charts/merged-values
         run: sh -c "${TEST_SCRIPT}"
 
