@@ -1,0 +1,149 @@
+#!/usr/bin/env sh
+
+set -euo pipefail
+
+# HELPERS
+
+function validate_filename_part {
+  test -z "$1" || ( echo $1 | grep "[\`$'"'"'"]" ) && return 1 || return 0
+}
+
+# SET DEFAULTS
+
+find_name_prefixes=
+find_name_suffixes=
+values_files_sed_command=
+# Discard hidden files by default.
+hidden=no
+# Select only files with a valid yaml extension by default
+default_find_name_suffixes="-name '*.yaml' -o -name '*.yml'"
+# By default, only select files that are direct children (not descendants) of the diven root.
+# All descendents may be discovered using the query argument "recursive".
+find_maxdepth_arg='-maxdepth 1'
+# Intersect suffix and prefix filters by default.
+find_pref_suff_joiner=
+
+# PARSE INPUT
+
+# $4 should be of the form:
+# discover://relative/path
+# discover://relative/path?depth=2
+# discover://relative/path?suffix_protocol=.suf/proto
+# discover://relative/path?suffix_protocol=.suf/proto&suffix_protocol=.foo/bar
+# discover://relative/path?depth=3&suffix_protocol=.suf/proto
+definition=$(echo "$4" | sed 's,^.*://,,')
+
+root=$(echo "$definition" | sed 's,?.*$,,')
+query=$(echo "$definition" | sed 's,^.*?,,')
+
+# Process each query argument
+while \
+  test -n "${query}" \
+  && arg="$(echo ${query} | sed 's,&.*$,,')" \
+  && query="$(echo ${query} | sed -n 's,^[^&]*&,,p')"
+do
+  case ${arg} in
+    recursive)
+      find_maxdepth_arg=
+      ;;
+    union)
+      find_pref_suff_joiner=' -o '
+      ;;
+    hidden-only)
+      # Discard non-hidden files
+      hidden=only
+      ;;
+    hidden)
+      hidden=yes
+      ;;
+    suffix=*)
+      _suffix=$(echo ${arg} | sed 's,suffix=,,')
+      if validate_filename_part "${_suffix}" > /dev/null; then
+        # Explicitly select files with the given suffix.
+        if [ -n "${find_name_suffixes}" ]; then
+          find_name_suffixes="${find_name_suffixes} -o "
+        fi
+        find_name_suffixes="${find_name_suffixes}-name '*${_suffix}'"
+      fi
+      ;;
+    prefix=*)
+      _prefix=$(echo ${arg} | sed 's,prefix=,,')
+      if validate_filename_part "${_prefix}" > /dev/null; then
+        # Explicitly select files with the given prefix.
+        if [ -n "${find_name_prefixes}" ]; then
+          find_name_prefixes="${find_name_prefixes} -o "
+        fi
+        find_name_prefixes="${find_name_prefixes}-name '${_prefix}*'"
+      fi
+      ;;
+    suffix_protocol=*)
+      _suffix=$(echo ${arg} | sed 's,suffix_protocol=,,;s,/.*$,,')
+      _protocol=$(echo ${arg} | sed -n 's,^.*/\(..*\)$,\1://,p')
+      if validate_filename_part "${_suffix}" > /dev/null; then
+        # Explicitly select files with the given suffix.
+        if [ -n "${find_name_suffixes}" ]; then
+          find_name_suffixes="${find_name_suffixes} -o "
+        fi
+        find_name_suffixes="${find_name_suffixes}-name '*${_suffix}'"
+        # "Download" files with the given protocol (if one was provided).
+        values_files_sed_command="${values_files_sed_command};s,^\(.*${_suffix}\)$,${_protocol}\1,"
+      fi
+      ;;
+    prefix_protocol=*)
+      _prefix=$(echo ${arg} | sed 's,prefix_protocol=,,;s,/.*$,,')
+      _protocol=$(echo ${arg} | sed -n 's,^.*/\(..*\)$,\1://,p')
+      if validate_filename_part "${_prefix}" > /dev/null; then
+        # Explicitly select files with the given prefix.
+        if [ -n "${find_name_prefixes}" ]; then
+          find_name_prefixes="${find_name_prefixes} -o "
+        fi
+        find_name_prefixes="${find_name_prefixes}-name '${_prefix}*'"
+        # "Download" files with the given protocol (if one was provided).
+        values_files_sed_command="${values_files_sed_command};s,^\(.*/${_prefix}[^/]*\)$,${_protocol}\1,"
+      fi
+      ;;
+    *)
+      ;;
+  esac
+done
+
+# CONSTRUCT FILE FILTERS/FORMATTERS
+
+# Construct find query
+if [ -z "${find_name_suffixes}" ]; then
+  find_name_suffixes=${default_find_name_suffixes}
+fi
+if [ -n "${find_name_prefixes}" ]; then
+  find_query="\( \( ${find_name_prefixes} \) ${find_pref_suff_joiner} \( ${find_name_suffixes} \) \)"
+else
+  find_query="\( ${find_name_suffixes} \)"
+fi
+
+if [ "${hidden}" == "no" ]; then
+  find_query="! -name '.*' ${find_query}"
+elif [ "$hidden" == "only" ]; then
+  find_query="-name '.*' ${find_query}"
+fi
+
+# DISCOVER VALUES FILES
+
+# Selects files as requested, then puts them in a comma-separated list,
+# for provisioning to:
+# helm template -f
+values_files=$(
+  eval find "${root}" ${find_maxdepth_arg} -type f ${find_query} \
+    | sed "$values_files_sed_command" \
+    | tr '\n' , | sed 's/,$//'
+)
+
+# GENERATE VALUES
+
+if [ -z "${values_files}" ]; then
+  # If there are no values files selected, exit cleanly with no output.
+  exit 0
+fi
+$HELM_BIN template \
+    -f "${values_files}" \
+    ${HELM_PLUGIN_DIR}/charts/merged-values \
+  | grep -v '^-*$' \
+  | grep -v '^#'
