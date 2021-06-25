@@ -1,34 +1,36 @@
 name: Testing
 on: [push]
+env:
+  HELM_PLUGIN_DIR: .
+  TEST_SCRIPT: |-
+    result="$(bin/discover . . . "${path}")"
+    test "$expected" == "$result" \
+    || (echo "Expected:
+    ${expected}
+    Result:
+    ${result}"; return 1)
+  SETUP: |-
+    mkdir -p test/dir.yaml
+    mkdir -p test/one/dir.txt
+
+    echo a: 1 > test/foo.yaml
+    echo b: 2 > test/bar.yml
+    echo c: 3 > test/baz.txt
+    echo d: 4 > test/one/foo.yaml
+    echo e: 5 > test/one/dir.txt/foo.yaml
+    echo f: 6 > test/one/fizz.txt
+    echo g: 7 > test/dir.yaml/foo.enc
 jobs:
   Test-Downloader-Plugin:
     runs-on: ubuntu-latest
     container: alpine/helm:3.5.4
     env:
       HELM_BIN: helm
-      HELM_PLUGIN_DIR: .
-      TEST_SCRIPT: |-
-        result="$(bin/discover . . . "${path}")"
-        test "$expected" == "$result" \
-        || (echo "Expected:
-        ${expected}
-        Result:
-        ${result}"; return 1)
     steps:
       - name: Check out repository
         uses: actions/checkout@v2
       - name: Establish test config hierarchy
-        run: |
-          mkdir -p test/dir.yaml
-          mkdir -p test/one/dir.txt
-
-          echo a: 1 > test/foo.yaml
-          echo b: 2 > test/bar.yml
-          echo c: 3 > test/baz.txt
-          echo d: 4 > test/one/foo.yaml
-          echo e: 5 > test/one/dir.txt/foo.yaml
-          echo f: 6 > test/one/fizz.txt
-          echo g: 7 > test/dir.yaml/foo.enc
+        run: sh -c "${SETUP}"
 
       - name: Test default behaviour
         env:
