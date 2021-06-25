@@ -1,34 +1,36 @@
 name: Testing
 on: [push]
+env:
+  HELM_PLUGIN_DIR: .
+  TEST_SCRIPT: |-
+    result="$(bin/discover . . . "${path}")"
+    test "$expected" == "$result" \
+    || (echo "Expected:
+    ${expected}
+    Result:
+    ${result}"; return 1)
+  SETUP: |-
+    mkdir -p test/dir.yaml
+    mkdir -p test/one/dir.txt
+
+    echo a: 1 > test/foo.yaml
+    echo b: 2 > test/bar.yml
+    echo c: 3 > test/baz.txt
+    echo d: 4 > test/one/foo.yaml
+    echo e: 5 > test/one/dir.txt/foo.yaml
+    echo f: 6 > test/one/fizz.txt
+    echo g: 7 > test/dir.yaml/foo.enc
 jobs:
   Test-Downloader-Plugin:
     runs-on: ubuntu-latest
     container: alpine/helm:3.5.4
     env:
       HELM_BIN: helm
-      HELM_PLUGIN_DIR: .
-      TEST_SCRIPT: |-
-        result="$(bin/discover . . . "${path}")"
-        test "$expected" == "$result" \
-        || (echo "Expected:
-        ${expected}
-        Result:
-        ${result}"; return 1)
     steps:
       - name: Check out repository
         uses: actions/checkout@v2
       - name: Establish test config hierarchy
-        run: |
-          mkdir -p test/dir.yaml
-          mkdir -p test/one/dir.txt
-
-          echo a: 1 > test/foo.yaml
-          echo b: 2 > test/bar.yml
-          echo c: 3 > test/baz.txt
-          echo d: 4 > test/one/foo.yaml
-          echo e: 5 > test/one/dir.txt/foo.yaml
-          echo f: 6 > test/one/fizz.txt
-          echo g: 7 > test/dir.yaml/foo.enc
+        run: sh -c "${SETUP}"
 
       - name: Test default behaviour
         env:
@@ -95,4 +97,115 @@ jobs:
             e: 5
             f: 6
             g: 7
+        run: sh -c "${TEST_SCRIPT}"
+
+  Test-Downloader-Plugin-With-Protocols:
+    runs-on: ubuntu-latest
+    container: alpine/helm:3.5.4
+    env:
+      HELM_BIN: echo
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v2
+      - name: Establish test config hierarchy
+        run: sh -c "${SETUP}"
+
+      - name: Test default behaviour
+        env:
+          path: discover://test
+          expected: >-
+            template
+            -f test/foo.yaml,test/bar.yml
+            ./charts/merged-values
+        run: sh -c "${TEST_SCRIPT}"
+
+      - name: Test single suffix-based protocol behaviour
+        env:
+          path: discover://test?suffix_protocol=.txt/test
+          expected: >-
+            template
+            -f test://test/baz.txt
+            ./charts/merged-values
+        run: sh -c "${TEST_SCRIPT}"
+
+      - name: Test single suffix-based protocol with other suffix behaviour
+        env:
+          path: discover://test?recursive&suffix_protocol=.enc/test&suffix=.txt
+          expected: >-
+            template
+            -f test://test/dir.yaml/foo.enc,test/one/fizz.txt,test/baz.txt
+            ./charts/merged-values
+        run: sh -c "${TEST_SCRIPT}"
+
+      - name: Test multiple suffix-based protocols behaviour
+        env:
+          path: discover://test?suffix_protocol=.txt/test&suffix_protocol=.enc/secret&recursive
+          expected: >-
+            template
+            -f secret://test/dir.yaml/foo.enc,test://test/one/fizz.txt,test://test/baz.txt
+            ./charts/merged-values
+        run: sh -c "${TEST_SCRIPT}"
+
+      - name: Test restrict single suffix-based protocol with prefix behaviour
+        env:
+          path: discover://test?recursive&suffix_protocol=.txt/test&prefix=f
+          expected: >-
+            template
+            -f test://test/one/fizz.txt
+            ./charts/merged-values
+        run: sh -c "${TEST_SCRIPT}"
+
+      - name: Test single suffix-based protocol unioned with prefix behaviour
+        env:
+          path: discover://test?union&suffix_protocol=.txt/test&prefix=f
+          expected: >-
+            template
+            -f test/foo.yaml,test://test/baz.txt
+            ./charts/merged-values
+        run: sh -c "${TEST_SCRIPT}"
+
+      - name: Test single prefix-based protocol behaviour
+        # includes implicit suffix filter for .yaml/.yml files
+        env:
+          path: discover://test?prefix_protocol=b/test
+          expected: >-
+            template
+            -f test://test/bar.yml
+            ./charts/merged-values
+        run: sh -c "${TEST_SCRIPT}"
+
+      - name: Test single prefix-based protocol with other prefix behaviour
+        env:
+          path: discover://test?prefix_protocol=f/test&prefix=b
+          expected: >-
+            template
+            -f test://test/foo.yaml,test/bar.yml
+            ./charts/merged-values
+        run: sh -c "${TEST_SCRIPT}"
+
+      - name: Test multiple prefix-based protocols behaviour
+        env:
+          path: discover://test?prefix_protocol=b/test&prefix_protocol=f/secret
+          expected: >-
+            template
+            -f secret://test/foo.yaml,test://test/bar.yml
+            ./charts/merged-values
+        run: sh -c "${TEST_SCRIPT}"
+
+      - name: Test restrict single prefix-based protocol with suffix behaviour
+        env:
+          path: discover://test?prefix_protocol=b/test&suffix=.txt
+          expected: >-
+            template
+            -f test://test/baz.txt
+            ./charts/merged-values
+        run: sh -c "${TEST_SCRIPT}"
+
+      - name: Test single prefix-based protocol unioned with suffix behaviour
+        env:
+          path: discover://test?recursive&union&prefix_protocol=baz/test&suffix=.enc
+          expected: >-
+            template
+            -f test/dir.yaml/foo.enc,test://test/baz.txt
+            ./charts/merged-values
         run: sh -c "${TEST_SCRIPT}"
