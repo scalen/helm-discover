@@ -21,8 +21,9 @@ helm plugin install https://github.com/scalen/helm-discover
 
 This is only applicable to the `-f` or `--values` option of a Helm
 command (e.g. `install`, `upgrade` or `template`).  The basic usage
-is to reference a directory from which to collect all non-hidden files
-with the extension `.yaml` or `.yml`, not including sub-directories:
+is to reference a directory (either absolutely, or relative to the
+PWD) from which to collect all non-hidden files with the extension
+`.yaml` or `.yml`, not including sub-directories:
 
 ```bash
 helm upgrade -f discover://path/to/values path/to/chart
