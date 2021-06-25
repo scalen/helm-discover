@@ -56,6 +56,9 @@ do
     hidden)
       hidden=yes
       ;;
+    suffix=)
+      default_find_name_suffixes=
+      ;;
     suffix=*)
       _suffix=$(echo ${arg} | sed 's,suffix=,,')
       if validate_filename_part "${_suffix}" > /dev/null; then
@@ -113,10 +116,18 @@ done
 if [ -z "${find_name_suffixes}" ]; then
   find_name_suffixes=${default_find_name_suffixes}
 fi
-if [ -n "${find_name_prefixes}" ]; then
-  find_query="\( \( ${find_name_prefixes} \) ${find_pref_suff_joiner} \( ${find_name_suffixes} \) \)"
+if [ -n "${find_name_suffixes}" ]; then
+  if [ -n "${find_name_prefixes}" ]; then
+    find_query="\( \( ${find_name_prefixes} \) ${find_pref_suff_joiner} \( ${find_name_suffixes} \) \)"
+  else
+    find_query="\( ${find_name_suffixes} \)"
+  fi
 else
-  find_query="\( ${find_name_suffixes} \)"
+  if [ -n "${find_name_prefixes}" ]; then
+    find_query="\( ${find_name_prefixes} \)"
+  else
+    find_query=
+  fi
 fi
 
 if [ "${hidden}" == "no" ]; then
