@@ -89,9 +89,35 @@ values files are unexpectedly excluded (or included, when using the
 `union` option).
 
 However, these default suffix options will be removed if any other
-`suffix=...` and/or `suffix_protocol=.../...` options are specified.  As
-such, if you wish to disable suffix filtering entirely, the null-suffix
-option `suffix=` (e.g. `...?suffix=&...`) may be used.
+`suffix=...` and/or `suffix_protocol=.../...` options are specified.
+
+If you wish to disable suffix filtering entirely, the null-suffix
+option `suffix=` (e.g. `...?suffix=&...`) may be used; this will also
+disable any suffix filtering instituted by use of the `suffix_protocol`
+option.  The same is true of using the null `prefix=` to disable prefix
+filtering instituted by the use of `prefix_protocol`.
+
+Let us clarify with an example. With the following two files in a
+directory, the described queries will produce the given results:
+```
+foo.yaml bar.txt
+```
+```
+(default behaviour filtering to .yaml and .yml, no query string)
+foo.yaml
+```
+```
+?suffix_protocol=.txt/baz
+baz://bar.txt
+```
+```
+?suffix=
+foo.yaml,bar.txt
+```
+```
+?suffix=&suffix_protocol=.txt/baz
+foo.yaml,baz://bar.txt
+```
 
 ### Usecase: Encrypted values
 
