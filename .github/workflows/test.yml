@@ -207,7 +207,7 @@ jobs:
 
       - name: Test single prefix-based protocol without prefix or suffix filtering behaviour
         env:
-          path: discover://test?suffix=&prefix_protocol=b/test
+          path: discover://test?suffix=&prefix=&prefix_protocol=b/test
           expected: |-
             test/foo.yaml
             test://test/bar.yml
