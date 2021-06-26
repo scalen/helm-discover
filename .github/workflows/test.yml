@@ -140,6 +140,15 @@ jobs:
           expected: test://test/baz.txt
         run: sh -c "${TEST_SCRIPT}"
 
+      - name: Test single suffix-based protocol without suffix filtering behaviour
+        env:
+          path: discover://test?suffix=&suffix_protocol=.txt/test
+          expected: |-
+            test/bar.yml
+            test/foo.yaml
+            test://test/baz.txt
+        run: sh -c "${TEST_SCRIPT}"
+
       - name: Test single suffix-based protocol with other suffix behaviour
         env:
           path: discover://test?recursive&suffix_protocol=.enc/test&suffix=.txt
@@ -179,10 +188,28 @@ jobs:
           expected: test://test/bar.yml
         run: sh -c "${TEST_SCRIPT}"
 
+      - name: Test single prefix-based protocol without prefix filtering behaviour
+        # includes implicit suffix filter for .yaml/.yml files
+        env:
+          path: discover://test?prefix=&prefix_protocol=b/test
+          expected: |-
+            test/foo.yaml
+            test://test/bar.yml
+        run: sh -c "${TEST_SCRIPT}"
+
       - name: Test single prefix-based protocol without default suffix filtering behaviour
         env:
           path: discover://test?suffix=&prefix_protocol=b/test
           expected: |-
+            test://test/bar.yml
+            test://test/baz.txt
+        run: sh -c "${TEST_SCRIPT}"
+
+      - name: Test single prefix-based protocol without prefix or suffix filtering behaviour
+        env:
+          path: discover://test?suffix=&prefix_protocol=b/test
+          expected: |-
+            test/foo.yaml
             test://test/bar.yml
             test://test/baz.txt
         run: sh -c "${TEST_SCRIPT}"

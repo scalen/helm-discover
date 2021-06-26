@@ -15,8 +15,11 @@ find_name_suffixes=
 values_files_sed_command=
 # Discard hidden files by default.
 hidden=no
-# Select only files with a valid yaml extension by default
+# Select only files with a valid yaml extension by default.
+# This will be set to null if suffix filtering is explicitly disabled.
 default_find_name_suffixes="-name '*.yaml' -o -name '*.yml'"
+# This will be set to null if prefix filtering is explicitly disabled.
+filter_by_prefixes=yes
 # By default, only select files that are direct children (not descendants) of the diven root.
 # All descendents may be discovered using the query argument "recursive".
 find_maxdepth_arg='-maxdepth 1'
@@ -58,6 +61,9 @@ do
       ;;
     suffix=)
       default_find_name_suffixes=
+      ;;
+    prefix=)
+      filter_by_prefixes=
       ;;
     suffix=*)
       _suffix=$(echo ${arg} | sed 's,suffix=,,')
@@ -113,7 +119,12 @@ done
 # CONSTRUCT FILE FILTERS/FORMATTERS
 
 # Construct find query
-if [ -z "${find_name_suffixes}" ]; then
+if [ -z "${filter_by_prefixes}" ]; then
+  find_name_prefixes=
+fi
+if [ -z "${default_find_name_suffixes}" ]; then
+  find_name_suffixes=
+elif [ -z "${find_name_suffixes}" ]; then
   find_name_suffixes=${default_find_name_suffixes}
 fi
 if [ -n "${find_name_suffixes}" ]; then
