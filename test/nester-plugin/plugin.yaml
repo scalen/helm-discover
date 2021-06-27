@@ -1,0 +1,10 @@
+name: "nest"
+version: "0.1.0"
+usage: "-f nest://relative/path/to/values"
+description: "Nest all values in the file within under a top level key 'nest:'."
+ignoreFlags: false
+downloaders:
+- command: "bin/nest"
+  protocols:
+  - "nest"
+  - "contain"

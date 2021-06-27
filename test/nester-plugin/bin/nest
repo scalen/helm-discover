@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+
+echo $4 | sed 's,://.*$,ed:,'
+file="$(echo $4 | sed 's,^.*://,,')"
+sed 's,^,  ,' < "${file}"

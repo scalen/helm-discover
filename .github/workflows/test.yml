@@ -1,40 +1,45 @@
 name: Testing
 on: [push]
 env:
-  HELM_PLUGIN_DIR: .
   SETUP: |-
-    mkdir -p test/dir.yaml
-    mkdir -p test/one/dir.txt
+    mkdir -p config/dir.yaml
+    mkdir -p config/one/dir.txt
 
-    echo a: 1 > test/foo.yaml
-    echo b: 2 > test/bar.yml
-    echo c: 3 > test/baz.txt
-    echo d: 4 > test/one/foo.yaml
-    echo e: 5 > test/one/dir.txt/foo.yaml
-    echo f: 6 > test/one/fizz.txt
-    echo g: 7 > test/dir.yaml/foo.enc
+    echo a: 1 > config/foo.yaml
+    echo b: 2 > config/bar.yml
+    echo c: 3 > config/baz.txt
+    echo d: 4 > config/one/foo.yaml
+    echo e: 5 > config/one/dir.txt/foo.yaml
+    echo f: 6 > config/one/fizz.txt
+    echo g: 7 > config/dir.yaml/foo.enc
 jobs:
   Test-Downloader-Plugin:
     runs-on: ubuntu-latest
     container: alpine/helm:3.5.4
     env:
-      HELM_BIN: helm
       TEST_SCRIPT: |-
-        result="$(bin/discover . . . "${path}")"
-        test "$expected" == "$result" \
-        || (echo "Expected:
-        ${expected}
-        Result:
-        ${result}"; return 1)
+        expected=$(printf "---\n# Source: merged-values/templates/values.yaml\n%s" "${expected}")
+        result="$(helm template -f "${path}" charts/merged-values)"
+        test "$expected" == "$result" || (
+          printf "Expected:\n%s\nResult:\n%s\n" "${expected}" "${result}"
+          return 1
+        )
     steps:
       - name: Check out repository
         uses: actions/checkout@v2
+      - name: Prepare test plugins
+        env:
+          HELM_PLUGINS: /github/home/.local/share/helm/plugins
+        run: |-
+          mkdir -p "${HELM_PLUGINS}"
+          ln -s "$PWD" "${HELM_PLUGINS}/helm-discover"
+          ln -s "${PWD}/test/nester-plugin" "${HELM_PLUGINS}/nester-plugin"
       - name: Establish test config hierarchy
         run: sh -c "${SETUP}"
 
       - name: Test default behaviour
         env:
-          path: discover://test
+          path: discover://config
           expected: |-
             a: 1
             b: 2
@@ -42,7 +47,7 @@ jobs:
 
       - name: Test behaviour without default suffix filtering
         env:
-          path: discover://test?suffix=
+          path: discover://config?suffix=
           expected: |-
             a: 1
             b: 2
@@ -51,7 +56,7 @@ jobs:
 
       - name: Test recursive behaviour
         env:
-          path: discover://test?recursive
+          path: discover://config?recursive
           expected: |-
             a: 1
             b: 2
@@ -61,14 +66,14 @@ jobs:
 
       - name: Test suffix behaviour
         env:
-          path: discover://test?suffix=.txt
+          path: discover://config?suffix=.txt
           expected: |-
             c: 3
         run: sh -c "${TEST_SCRIPT}"
 
       - name: Test recursive and suffix behaviour
         env:
-          path: discover://test?recursive&suffix=.txt
+          path: discover://config?recursive&suffix=.txt
           expected: |-
             c: 3
             f: 6
@@ -76,14 +81,14 @@ jobs:
 
       - name: Test prefix and suffix behaviour
         env:
-          path: discover://test?suffix=.txt&prefix=b
+          path: discover://config?suffix=.txt&prefix=b
           expected: |-
             c: 3
         run: sh -c "${TEST_SCRIPT}"
 
       - name: Test unioned prefix and suffix behaviour
         env:
-          path: discover://test?suffix=.txt&prefix=b&union
+          path: discover://config?suffix=.txt&prefix=b&union
           expected: |-
             b: 2
             c: 3
@@ -91,14 +96,14 @@ jobs:
 
       - name: Test recursive prefix and suffix behaviour
         env:
-          path: discover://test?suffix=.txt&prefix=f&recursive
+          path: discover://config?suffix=.txt&prefix=f&recursive
           expected: |-
             f: 6
         run: sh -c "${TEST_SCRIPT}"
 
       - name: Test recursive unioned prefix and suffix behaviour
         env:
-          path: discover://test?union&suffix=.txt&prefix=f&recursive
+          path: discover://config?union&suffix=.txt&prefix=f&recursive
           expected: |-
             a: 1
             c: 3
@@ -108,138 +113,132 @@ jobs:
             g: 7
         run: sh -c "${TEST_SCRIPT}"
 
-  Test-Downloader-Plugin-With-Protocols:
-    runs-on: ubuntu-latest
-    container: alpine/helm:3.5.4
-    env:
-      HELM_BIN: echo
-      TEST_SCRIPT: |-
-        result="$(bin/discover . . . "${path}" | cut -d' ' -f3 | tr , '\n' | sort)"
-        test "$expected" == "$result" \
-        || (echo "Expected:
-        ${expected}
-        Result:
-        ${result}"; return 1)
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v2
-      - name: Establish test config hierarchy
-        run: sh -c "${SETUP}"
-
-      - name: Test default behaviour
-        env:
-          path: discover://test
-          expected: |-
-            test/bar.yml
-            test/foo.yaml
-        run: sh -c "${TEST_SCRIPT}"
-
       - name: Test single suffix-based protocol behaviour
         env:
-          path: discover://test?suffix_protocol=.txt/test
-          expected: test://test/baz.txt
+          path: discover://config?suffix_protocol=.txt/nest
+          expected: |-
+            nested:
+              c: 3
         run: sh -c "${TEST_SCRIPT}"
 
       - name: Test single suffix-based protocol without suffix filtering behaviour
         env:
-          path: discover://test?suffix=&suffix_protocol=.txt/test
+          path: discover://config?suffix=&suffix_protocol=.txt/nest
           expected: |-
-            test/bar.yml
-            test/foo.yaml
-            test://test/baz.txt
+            a: 1
+            b: 2
+            nested:
+              c: 3
         run: sh -c "${TEST_SCRIPT}"
 
       - name: Test single suffix-based protocol with other suffix behaviour
         env:
-          path: discover://test?recursive&suffix_protocol=.enc/test&suffix=.txt
+          path: discover://config?recursive&suffix_protocol=.enc/nest&suffix=.txt
           expected: |-
-            test/baz.txt
-            test/one/fizz.txt
-            test://test/dir.yaml/foo.enc
+            c: 3
+            f: 6
+            nested:
+              g: 7
         run: sh -c "${TEST_SCRIPT}"
 
       - name: Test multiple suffix-based protocols behaviour
         env:
-          path: discover://test?suffix_protocol=.txt/test&suffix_protocol=.enc/secret&recursive
+          path: discover://config?suffix_protocol=.txt/nest&suffix_protocol=.enc/contain&recursive
           expected: |-
-            secret://test/dir.yaml/foo.enc
-            test://test/baz.txt
-            test://test/one/fizz.txt
+            contained:
+              g: 7
+            nested:
+              c: 3
+              f: 6
         run: sh -c "${TEST_SCRIPT}"
 
       - name: Test restrict single suffix-based protocol with prefix behaviour
         env:
-          path: discover://test?recursive&suffix_protocol=.txt/test&prefix=f
-          expected: test://test/one/fizz.txt
+          path: discover://config?recursive&suffix_protocol=.txt/nest&prefix=f
+          expected: |-
+            nested:
+              f: 6
         run: sh -c "${TEST_SCRIPT}"
 
       - name: Test single suffix-based protocol unioned with prefix behaviour
         env:
-          path: discover://test?union&suffix_protocol=.txt/test&prefix=f
+          path: discover://config?union&suffix_protocol=.txt/nest&prefix=f
           expected: |-
-            test/foo.yaml
-            test://test/baz.txt
+            a: 1
+            nested:
+              c: 3
         run: sh -c "${TEST_SCRIPT}"
 
       - name: Test single prefix-based protocol behaviour
         # includes implicit suffix filter for .yaml/.yml files
         env:
-          path: discover://test?prefix_protocol=b/test
-          expected: test://test/bar.yml
+          path: discover://config?prefix_protocol=b/nest
+          expected: |-
+            nested:
+              b: 2
         run: sh -c "${TEST_SCRIPT}"
 
       - name: Test single prefix-based protocol without prefix filtering behaviour
         # includes implicit suffix filter for .yaml/.yml files
         env:
-          path: discover://test?prefix=&prefix_protocol=b/test
+          path: discover://config?prefix=&prefix_protocol=b/nest
           expected: |-
-            test/foo.yaml
-            test://test/bar.yml
+            a: 1
+            nested:
+              b: 2
         run: sh -c "${TEST_SCRIPT}"
 
       - name: Test single prefix-based protocol without default suffix filtering behaviour
         env:
-          path: discover://test?suffix=&prefix_protocol=b/test
+          path: discover://config?suffix=&prefix_protocol=b/nest
           expected: |-
-            test://test/bar.yml
-            test://test/baz.txt
+            nested:
+              b: 2
+              c: 3
         run: sh -c "${TEST_SCRIPT}"
 
       - name: Test single prefix-based protocol without prefix or suffix filtering behaviour
         env:
-          path: discover://test?suffix=&prefix=&prefix_protocol=b/test
+          path: discover://config?suffix=&prefix=&prefix_protocol=b/nest
           expected: |-
-            test/foo.yaml
-            test://test/bar.yml
-            test://test/baz.txt
+            a: 1
+            nested:
+              b: 2
+              c: 3
         run: sh -c "${TEST_SCRIPT}"
 
       - name: Test single prefix-based protocol with other prefix behaviour
         env:
-          path: discover://test?prefix_protocol=f/test&prefix=b
+          path: discover://config?prefix_protocol=f/nest&prefix=b
           expected: |-
-            test/bar.yml
-            test://test/foo.yaml
+            b: 2
+            nested:
+              a: 1
         run: sh -c "${TEST_SCRIPT}"
 
       - name: Test multiple prefix-based protocols behaviour
         env:
-          path: discover://test?prefix_protocol=b/test&prefix_protocol=f/secret
+          path: discover://config?prefix_protocol=b/nest&prefix_protocol=f/contain
           expected: |-
-            secret://test/foo.yaml
-            test://test/bar.yml
+            contained:
+              a: 1
+            nested:
+              b: 2
         run: sh -c "${TEST_SCRIPT}"
 
       - name: Test restrict single prefix-based protocol with suffix behaviour
         env:
-          path: discover://test?prefix_protocol=b/test&suffix=.txt
-          expected: test://test/baz.txt
+          path: discover://config?prefix_protocol=b/nest&suffix=.txt
+          expected: |-
+            nested:
+              c: 3
         run: sh -c "${TEST_SCRIPT}"
 
       - name: Test single prefix-based protocol unioned with suffix behaviour
         env:
-          path: discover://test?recursive&union&prefix_protocol=baz/test&suffix=.enc
+          path: discover://config?recursive&union&prefix_protocol=baz/nest&suffix=.enc
           expected: |-
-            test/dir.yaml/foo.enc
-            test://test/baz.txt
+            g: 7
+            nested:
+              c: 3
         run: sh -c "${TEST_SCRIPT}"
