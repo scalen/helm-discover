@@ -85,6 +85,10 @@ do
         find_name_prefixes="${find_name_prefixes}-name '${_prefix}*'"
       fi
       ;;
+    protocol=*)
+      _protocol=$(echo ${arg} | sed 's,protocol=\(.*\)$,\1://,')
+      values_files_sed_command="${values_files_sed_command};s,^,${_protocol},"
+      ;;
     suffix_protocol=*)
       _suffix=$(echo ${arg} | sed 's,suffix_protocol=,,;s,/.*$,,')
       _protocol=$(echo ${arg} | sed -n 's,^.*/\(..*\)$,\1://,p')
