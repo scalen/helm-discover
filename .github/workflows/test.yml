@@ -113,6 +113,25 @@ jobs:
             g: 7
         run: sh -c "${TEST_SCRIPT}"
 
+      - name: Test universal protocol behaviour
+        env:
+          path: discover://config?protocol=nest
+          expected: |-
+            nested:
+              a: 1
+              b: 2
+        run: sh -c "${TEST_SCRIPT}"
+
+      - name: Test universal protocol with recursive multi-suffix behaviour
+        env:
+          path: discover://config?protocol=nest&recursive&suffix=.txt&suffix=.yml
+          expected: |-
+            nested:
+              b: 2
+              c: 3
+              f: 6
+        run: sh -c "${TEST_SCRIPT}"
+
       - name: Test single suffix-based protocol behaviour
         env:
           path: discover://config?suffix_protocol=.txt/nest

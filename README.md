@@ -55,20 +55,21 @@ suffixes will be selected.
 `prefix=<prefix>`: Like `suffix=`, but for files named with the given
 prefix(es).
 
+`protocol=<protocol>`: Use the given protocol to process all files
+discovered.  This effectively expands the file names as follows:
+```
+path/to/values/filename -> <protocol>://path/to/values/filename
+```
+This is mostly to facilitate interactions with other plugins.
+
 `suffix_protocol=<suffix>/<protocol>`: Like `suffix=`, in that it selects
 files named with the given suffix(es); In addition, it uses the given
-protocol to process these specific files.  This effectively expands the
-file names as follows:
-```
-path/to/values/filename<suffix> -> <protocol>://path/to/values/filename<suffix>
-```
-This is mostly to facilitate interactions with other plugins.  For
+protocol to process only these specific files, as for `protocol=`.  For
 example, in order to discover values files with the suffix `.enc` that
-have been encrypted with
-[`helm-secrets`](https://github.com/jkroepke/helm-secrets), use the
-following query parameter:
+have been encrypted with [`helm-secrets`](https://github.com/jkroepke/helm-secrets),
+use the following query parameter:
 ```
-...?suffix_protocol=.enc/secrets
+...?suffix_protocol=.enc/secrets&...
 ```
 
 `prefix_protocol=<prefix>/<protocol>`: Like `suffix_protocol=`, but for files named with the given prefix(es).
